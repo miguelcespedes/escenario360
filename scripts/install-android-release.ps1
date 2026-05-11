@@ -171,33 +171,44 @@ Write-Host 'Consultando ultimo run exitoso...'
 $runsUrl = "https://api.github.com/repos/$repo/actions/runs?status=completed&per_page=20"
 $runs = Invoke-RestMethod -Uri $runsUrl -Headers $headers
 
-$run = $runs.workflow_runs |
-  Where-Object { $_.name -eq 'Android Build' -and $_.conclusion -eq 'success' } |
-  Select-Object -First 1
+$candidateRuns = $runs.workflow_runs |
+  Where-Object { $_.name -eq 'Android Build' -and $_.conclusion -eq 'success' }
+
+$run = $null
+$artifact = $null
+
+foreach ($candidate in $candidateRuns) {
+  Write-Host "Revisando run #$($candidate.run_number) para artifact release..."
+  $artifacts = $null
+
+  for ($i = 1; $i -le 3; $i++) {
+    $artifacts = Invoke-RestMethod -Uri $candidate.artifacts_url -Headers $headers
+    $artifact = $artifacts.artifacts | Where-Object { $_.name -eq $artifactName -and -not $_.expired } | Select-Object -First 1
+    if ($artifact) { break }
+
+    if ($i -lt 3) {
+      Write-Host "Artifact aun no disponible para run #$($candidate.run_number) (intento $i/3). Esperando 5s..."
+      Start-Sleep -Seconds 5
+    }
+  }
+
+  if ($artifact) {
+    $run = $candidate
+    break
+  }
+}
 
 if (-not $run) {
   if (Test-Path -LiteralPath $localApkPath) {
-    Write-Host 'No se encontro run exitoso. Se usara APK local cacheado.'
+    Write-Host 'No se encontro run exitoso con artifact release. Se usara APK local cacheado.'
     Install-Apk -AdbPath $adb -ApkPath $localApkPath
     Write-Host "Instalacion completada. APK usado: $localApkPath"
     exit 0
   }
-  throw "No se encontro un run exitoso de 'Android Build'."
+  throw "No se encontro un run exitoso de 'Android Build' con artifact '$artifactName'."
 }
 
 Write-Host "Run encontrado: #$($run.run_number) ($($run.html_url))"
-$artifacts = Invoke-RestMethod -Uri $run.artifacts_url -Headers $headers
-$artifact = $artifacts.artifacts | Where-Object { $_.name -eq $artifactName -and -not $_.expired } | Select-Object -First 1
-
-if (-not $artifact) {
-  if (Test-Path -LiteralPath $localApkPath) {
-    Write-Host 'No se encontro artifact release. Se usara APK local cacheado.'
-    Install-Apk -AdbPath $adb -ApkPath $localApkPath
-    Write-Host "Instalacion completada. APK usado: $localApkPath"
-    exit 0
-  }
-  throw "No se encontro artifact '$artifactName'."
-}
 
 $downloadedWithGh = $false
 $gh = Get-Command gh -ErrorAction SilentlyContinue
