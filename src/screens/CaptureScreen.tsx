@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Alert, SafeAreaView, StyleSheet, View } from 'react-native';
+import { Alert, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 import { Camera } from 'react-native-vision-camera';
 
 import { CameraPreview } from '../components/CameraPreview';
@@ -65,7 +65,7 @@ export const CaptureScreen = () => {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.wrap}>
+      <ScrollView contentContainerStyle={styles.wrap}>
         <StatusCard
           panel={capture.currentPanel}
           total={capture.totalPanels}
@@ -87,7 +87,7 @@ export const CaptureScreen = () => {
           onExport={handleExport}
           disabled={!hasPermission}
         />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -95,10 +95,9 @@ export const CaptureScreen = () => {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   wrap: {
-    flex: 1,
     padding: spacing.md,
     gap: spacing.md,
-    justifyContent: 'space-between',
+    paddingBottom: spacing.xl,
   },
   hudLayer: {
     position: 'absolute',
