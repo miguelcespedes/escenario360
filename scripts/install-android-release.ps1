@@ -6,6 +6,21 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$envFile = Join-Path $projectRoot '.env'
+if (Test-Path -LiteralPath $envFile) {
+  Get-Content -LiteralPath $envFile | ForEach-Object {
+    if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
+    $parts = $_ -split '=', 2
+    if ($parts.Count -eq 2) {
+      $key = $parts[0].Trim()
+      $value = $parts[1].Trim().Trim('"')
+      if ($key -and -not (Test-Path "env:$key")) {
+        Set-Item -Path "env:$key" -Value $value
+      }
+    }
+  }
+}
+
 $outputDir = Join-Path $projectRoot 'output'
 $tempRoot = Join-Path $env:TEMP 'stage360-artifact'
 $zipPath = Join-Path $tempRoot 'artifact.zip'
