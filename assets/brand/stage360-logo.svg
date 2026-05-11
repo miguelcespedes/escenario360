@@ -1,0 +1,10 @@
+<svg width="1250" height="320" viewBox="0 0 1250 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1250" height="320" rx="48" fill="#071325"/>
+  <g transform="translate(48 32)">
+    <rect width="256" height="256" rx="56" fill="#091931"/>
+    <circle cx="128" cy="128" r="82" stroke="#1F3552" stroke-width="16"/>
+    <path d="M56 128C56 88.2355 88.2355 56 128 56" stroke="#52B4FF" stroke-width="18" stroke-linecap="round"/>
+    <path d="M128 200C88.2355 200 56 167.764 56 128" stroke="#59D2A5" stroke-width="18" stroke-linecap="round"/>
+  </g>
+  <text x="352" y="196" fill="#EAF2FF" font-size="118" font-weight="700" font-family="Segoe UI, Arial, sans-serif">Stage360</text>
+</svg>

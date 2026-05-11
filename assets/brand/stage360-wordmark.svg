@@ -1,0 +1,6 @@
+<svg width="1250" height="300" viewBox="0 0 1250 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1250" height="300" rx="40" fill="#071325"/>
+  <text x="120" y="192" fill="#EAF2FF" font-size="120" font-weight="700" font-family="Segoe UI, Arial, sans-serif">Stage360</text>
+  <path d="M1020 95C1064.74 95 1101 131.261 1101 176" stroke="#52B4FF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M1020 257C975.261 257 939 220.739 939 176" stroke="#59D2A5" stroke-width="18" stroke-linecap="round"/>
+</svg>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { IconButton, Text } from 'react-native-paper';
 
 import { AppMenu } from './AppMenu';
@@ -30,13 +30,16 @@ export const AppHeader = ({
 
   return (
     <AppSurface style={styles.wrap}>
-      <View>
-        <Text variant="headlineSmall" style={styles.title}>
-          Stage360
-        </Text>
-        <Text variant="bodySmall" style={styles.version}>
-          v0.1.0
-        </Text>
+      <View style={styles.brandRow}>
+        <Image source={require('../../assets/brand/stage360-logo-dark.png')} style={styles.logo} />
+        <View>
+          <Text variant="headlineSmall" style={styles.title}>
+            Stage360
+          </Text>
+          <Text variant="bodySmall" style={styles.version}>
+            v0.1.0
+          </Text>
+        </View>
       </View>
 
       <AppMenu
@@ -65,6 +68,16 @@ const styles = StyleSheet.create({
   title: {
     fontWeight: '800',
     letterSpacing: 0.2,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logo: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
   },
   version: {
     opacity: 0.8,

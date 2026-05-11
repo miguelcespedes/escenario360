@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Alert, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { Text as PaperText } from 'react-native-paper';
+import { Alert, SafeAreaView, StyleSheet, View } from 'react-native';
+import { Icon, Text as PaperText } from 'react-native-paper';
 import { Camera } from 'react-native-vision-camera';
 
 import { CameraPreview } from '../components/CameraPreview';
@@ -21,8 +21,8 @@ export const CaptureScreen = () => {
   const cameraRef = useRef<Camera>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [viewerUri, setViewerUri] = useState<string | undefined>(undefined);
-  const [viewerLabel, setViewerLabel] = useState<string | undefined>(undefined);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
   const capture = useCaptureStore();
   const orientation = useDeviceOrientation();
 
@@ -71,11 +71,8 @@ export const CaptureScreen = () => {
   };
 
   const handleOpenPanel = (panel: { panel: number; thumbnailUri?: string }) => {
-    if (!panel.thumbnailUri) {
-      return;
-    }
-    setViewerUri(panel.thumbnailUri);
-    setViewerLabel(`Panel ${String(panel.panel).padStart(2, '0')}`);
+    setViewerOpen(true);
+    setViewerIndex(Math.max(0, panel.panel - 1));
   };
 
   const handleHelp = () => {
@@ -93,9 +90,21 @@ export const CaptureScreen = () => {
     Alert.alert('Stage360', 'Herramienta de captura panoramica guiada v0.1.0');
   };
 
+  const photos = capture.panels.map(panel => ({
+    panel: panel.panel,
+    uri: panel.thumbnailUri,
+    filename: panel.filename,
+    capturedAt: capture.shots.find(shot => shot.panel === panel.panel)?.capturedAt,
+  }));
+
+  const isComplete = capture.shots.length === capture.totalPanels;
   const completedPanels = capture.shots.length;
   const highlightedPanel = completedPanels > 0 ? completedPanels : capture.currentPanel;
-  const guidance = orientation.isLevel ? capture.statusText : 'Celular inclinado.';
+  const guidance = isComplete
+    ? 'Captura completa.'
+    : orientation.isLevel
+      ? capture.statusText
+      : 'Celular inclinado.';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -118,10 +127,18 @@ export const CaptureScreen = () => {
           <View style={styles.hudLayer}>
             <LevelHud isLevel={orientation.isLevel} />
             <AppSurface style={styles.topOverlay}>
-              <PaperText style={styles.subtitle}>Captura panoramica</PaperText>
+              <View style={styles.subtitleRow}>
+                <Icon source="panorama-horizontal" size={14} color="#9AB0C8" />
+                <PaperText style={styles.subtitle}>Captura panoramica</PaperText>
+              </View>
               <PaperText style={styles.status}>{`Panel ${String(capture.currentPanel).padStart(2, '0')} de ${String(capture.totalPanels).padStart(2, '0')}`}</PaperText>
             </AppSurface>
             <AppSurface style={styles.bottomOverlay}>
+              <Icon
+                source={isComplete ? 'check-circle' : orientation.isLevel ? 'camera' : 'alert-circle-outline'}
+                size={14}
+                color={isComplete ? '#5BD3A3' : '#EAF2FF'}
+              />
               <PaperText style={styles.bottomText}>{guidance}</PaperText>
             </AppSurface>
           </View>
@@ -141,12 +158,11 @@ export const CaptureScreen = () => {
         />
 
         <PhotoPreviewModal
-          visible={Boolean(viewerUri)}
-          imageUri={viewerUri}
-          label={viewerLabel ? `${viewerLabel} de ${String(capture.totalPanels).padStart(2, '0')}` : undefined}
+          visible={viewerOpen}
+          photos={photos}
+          initialIndex={viewerIndex}
           onClose={() => {
-            setViewerUri(undefined);
-            setViewerLabel(undefined);
+            setViewerOpen(false);
           }}
         />
       </View>
@@ -198,6 +214,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
   },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   status: {
     color: colors.text,
     fontWeight: '700',
@@ -212,6 +233,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: colors.overlay,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   bottomText: {
     color: colors.text,

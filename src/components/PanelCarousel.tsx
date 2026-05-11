@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { FlatList, Image, StyleSheet, View } from 'react-native';
-import { Text, TouchableRipple, useTheme } from 'react-native-paper';
+import { Icon, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 type Panel = { panel: number; thumbnailUri?: string };
 
@@ -59,6 +59,11 @@ export const PanelCarousel = ({ panels, currentPanel, highlightedPanel, onPressI
                   {String(item.panel).padStart(2, '0')}
                 </Text>
               </View>
+              {isCaptured ? (
+                <View style={[styles.checkWrap, { backgroundColor: theme.colors.secondary }]}>
+                  <Icon source="check" size={12} color="#062218" />
+                </View>
+              ) : null}
             </View>
           </TouchableRipple>
         );
@@ -98,5 +103,15 @@ const styles = StyleSheet.create({
   thumb: {
     width: '100%',
     height: '100%',
+  },
+  checkWrap: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

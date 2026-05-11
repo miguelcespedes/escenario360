@@ -13,7 +13,7 @@ type Props = {
 export const CaptureControls = ({ onCapture, panelLabel, disabled }: Props) => (
   <View style={styles.wrap}>
     <Text style={styles.info}>{panelLabel}</Text>
-    <AppButton label="Capturar panel" onPress={onCapture} disabled={disabled} />
+    <AppButton label="Capturar panel" icon="camera-iris" onPress={onCapture} disabled={disabled} />
   </View>
 );
 

@@ -6,14 +6,16 @@ type Props = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  icon?: string;
 };
 
-export const AppButton = ({ label, onPress, disabled }: Props) => {
+export const AppButton = ({ label, onPress, disabled, icon }: Props) => {
   return (
     <Button
       mode="contained"
       onPress={onPress}
       disabled={disabled}
+      icon={icon}
       contentStyle={styles.content}
       labelStyle={styles.label}
       style={styles.btn}>

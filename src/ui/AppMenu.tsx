@@ -25,7 +25,7 @@ export const AppMenu = ({
   return (
     <Menu visible={visible} onDismiss={onDismiss} anchor={anchor} contentStyle={{ borderRadius: 14 }}>
       <Menu.Item onPress={onReset} title="Reiniciar captura" leadingIcon="restart" />
-      <Menu.Item onPress={onExport} title="Exportar manifest" leadingIcon="file-export" />
+      <Menu.Item onPress={onExport} title="Exportar manifest" leadingIcon="download" />
       <Divider />
       <Menu.Item onPress={onHelp} title="Ver ayuda" leadingIcon="help-circle-outline" />
       <Menu.Item onPress={onDebug} title="Ver debug" leadingIcon="bug-outline" />
