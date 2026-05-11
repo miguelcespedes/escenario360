@@ -29,11 +29,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Read app version
+        run: echo "APP_VERSION=$(node -p \"require('./package.json').version\")" >> $GITHUB_ENV
+
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
-
-      - name: Build debug APK
-        run: cd android && ./gradlew assembleDebug
 
       - name: Build release APK
         run: cd android && ./gradlew assembleRelease
@@ -41,19 +41,11 @@ jobs:
       - name: Prepare output folder
         run: mkdir -p output
 
-      - name: Copy APK
-        run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk output/stage360-debug.apk
-          cp android/app/build/outputs/apk/release/app-release.apk output/stage360-release.apk
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: stage360-debug-apk
-          path: output/stage360-debug.apk
+      - name: Copy release APK with versioned name
+        run: cp android/app/build/outputs/apk/release/app-release.apk output/stage360-v${APP_VERSION}-release.apk
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
           name: stage360-release-apk
-          path: output/stage360-release.apk
+          path: output/stage360-v${APP_VERSION}-release.apk

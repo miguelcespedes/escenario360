@@ -13,7 +13,7 @@ Capturar 12 fotos horizontales desde un mismo punto fisico, guardar originales l
 - Header con marca Stage360 + menu hamburguesa.
 - Visor ampliado de fotos con swipe izquierda/derecha entre paneles.
 - Guardado local de paneles y manifest.
-- Workflow GitHub Actions para compilar APK Android debug.
+- Workflow GitHub Actions para compilar APK Android release.
 
 ## Branding y logo
 
@@ -73,7 +73,7 @@ npm run android
 ## Build Android por script
 
 ```bash
-npm run build:android:debug
+npm run build:android:release
 ```
 
 ## GitHub Actions
@@ -85,33 +85,30 @@ Hace lo siguiente:
 - corre en `ubuntu-latest`;
 - instala Node.js LTS y JDK 17;
 - instala dependencias (`npm ci`);
-- compila APK debug (`cd android && ./gradlew assembleDebug`);
 - compila APK release (`cd android && ./gradlew assembleRelease`);
+- lee version desde `package.json`;
 - crea `output/`;
-- copia APK a `output/stage360-debug.apk`;
-- copia APK a `output/stage360-release.apk`;
-- sube artifacts `stage360-debug-apk` y `stage360-release-apk`.
+- copia APK a `output/stage360-v<version>-release.apk`;
+- sube artifact `stage360-release-apk`.
 
 ## Donde queda el APK
 
-- Ruta intermedia: `android/app/build/outputs/apk/debug/app-debug.apk`
-- Ruta final esperada en workspace: `output/stage360-debug.apk`
 - Ruta release intermedia: `android/app/build/outputs/apk/release/app-release.apk`
-- Ruta release final: `output/stage360-release.apk`
+- Ruta final en workspace: `output/stage360-v<version>-release.apk`
+- Ejemplo actual: `output/stage360-v0.1.0-release.apk`
 
 ## Descargar artifact en GitHub
 
 1. Ve a la pestana **Actions** del repo.
 2. Abre el run del workflow **Android Build**.
-3. En **Artifacts**, descarga `stage360-debug-apk`.
-4. Para APK autonomo (sin Metro), descarga `stage360-release-apk`.
+3. En **Artifacts**, descarga `stage360-release-apk`.
 
 ## Instalar APK en Android
 
 Con ADB:
 
 ```bash
-adb install -r output/stage360-debug.apk
+adb install -r output/stage360-v0.1.0-release.apk
 ```
 
 O copia el APK al telefono y abre el archivo para instalarlo.
@@ -125,20 +122,37 @@ O copia el APK al telefono y abre el archivo para instalarlo.
 - Muestra indicador `Panel XX de 12`.
 - Si el panel aun no tiene foto, muestra placeholder `Panel pendiente`.
 
-## Instalar directo desde artifact (sin compilar local)
+## Instalar release desde artifact/cache local
 
 Con celular conectado por USB-C y depuracion USB activa:
 
 ```bash
-npm run install:android:debug
+npm run install:android:release
 ```
 
-Este script:
+Este script usa flujo release unicamente:
 
 - consulta el ultimo run exitoso de `Android Build`;
-- prioriza `stage360-release-apk` y usa `stage360-debug-apk` como fallback;
-- extrae `stage360-release.apk` o `stage360-debug.apk`;
+- descarga `stage360-release-apk` si hace falta;
+- guarda/cachea en `output/stage360-v<version>-release.apk`;
 - instala con `adb install -r` en el dispositivo conectado.
+
+Modo cache local (`output/`):
+
+- Primera ejecucion: descarga y guarda APK en `output/`.
+- Ejecuciones siguientes: reutiliza APK local y no descarga de nuevo.
+
+Flags utiles:
+
+```bash
+# Solo instala APK local (sin consultar GitHub)
+npm run install:android:release:local
+
+# Fuerza nueva descarga del artifact
+npm run install:android:release:fresh
+```
+
+Si falla ADB por permisos de usuario, no se borra el APK local. Corrige permisos del telefono y reintenta con `npm run install:android:release:local`.
 
 Nota: GitHub exige autenticacion para descargar `archive_download_url` de artifacts. Usa `GITHUB_TOKEN` (o `GH_TOKEN`) con permiso de lectura del repositorio.
 
