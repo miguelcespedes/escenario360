@@ -57,20 +57,25 @@ Hace lo siguiente:
 - instala Node.js LTS y JDK 17;
 - instala dependencias (`npm ci`);
 - compila APK debug (`cd android && ./gradlew assembleDebug`);
+- compila APK release (`cd android && ./gradlew assembleRelease`);
 - crea `output/`;
 - copia APK a `output/stage360-debug.apk`;
-- sube artifact `stage360-debug-apk`.
+- copia APK a `output/stage360-release.apk`;
+- sube artifacts `stage360-debug-apk` y `stage360-release-apk`.
 
 ## Donde queda el APK
 
 - Ruta intermedia: `android/app/build/outputs/apk/debug/app-debug.apk`
 - Ruta final esperada en workspace: `output/stage360-debug.apk`
+- Ruta release intermedia: `android/app/build/outputs/apk/release/app-release.apk`
+- Ruta release final: `output/stage360-release.apk`
 
 ## Descargar artifact en GitHub
 
 1. Ve a la pestana **Actions** del repo.
 2. Abre el run del workflow **Android Build**.
 3. En **Artifacts**, descarga `stage360-debug-apk`.
+4. Para APK autonomo (sin Metro), descarga `stage360-release-apk`.
 
 ## Instalar APK en Android
 
@@ -81,6 +86,29 @@ adb install -r output/stage360-debug.apk
 ```
 
 O copia el APK al telefono y abre el archivo para instalarlo.
+
+## Instalar directo desde artifact (sin compilar local)
+
+Con celular conectado por USB-C y depuracion USB activa:
+
+```bash
+npm run install:android:debug
+```
+
+Este script:
+
+- consulta el ultimo run exitoso de `Android Build`;
+- prioriza `stage360-release-apk` y usa `stage360-debug-apk` como fallback;
+- extrae `stage360-release.apk` o `stage360-debug.apk`;
+- instala con `adb install -r` en el dispositivo conectado.
+
+Nota: GitHub exige autenticacion para descargar `archive_download_url` de artifacts. Usa `GITHUB_TOKEN` (o `GH_TOKEN`) con permiso de lectura del repositorio.
+
+Puedes guardarlo en `.env`:
+
+```env
+GITHUB_TOKEN=tu_token
+```
 
 ## Pendientes para backend/stitching
 

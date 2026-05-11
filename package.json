@@ -6,6 +6,7 @@
     "android": "react-native run-android",
     "build:android:debug": "cd android && ./gradlew assembleDebug",
     "build:android:release": "cd android && ./gradlew assembleRelease",
+    "install:android:debug": "powershell -ExecutionPolicy Bypass -File ./scripts/install-android-debug.ps1",
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest"
