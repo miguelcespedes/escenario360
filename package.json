@@ -4,12 +4,16 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "android:emulator": "powershell -ExecutionPolicy Bypass -Command \"$env:ANDROID_SERIAL='emulator-5554'; npx react-native run-android --device emulator-5554 --port 8081\"",
     "build:android:release": "cd android && ./gradlew assembleRelease",
+    "emulator:lite": "powershell -ExecutionPolicy Bypass -Command \"& 'C:\\Users\\HOME\\AppData\\Local\\Android\\Sdk\\emulator\\emulator.exe' -avd stage360-lite -no-boot-anim -no-snapshot\"",
     "install:android:release": "powershell -ExecutionPolicy Bypass -File ./scripts/install-android-release.ps1",
     "install:android:release:local": "powershell -ExecutionPolicy Bypass -File ./scripts/install-android-release.ps1 -InstallOnly",
     "install:android:release:fresh": "powershell -ExecutionPolicy Bypass -File ./scripts/install-android-release.ps1 -ForceDownload",
     "lint": "eslint .",
     "start": "react-native start",
+    "start:8082": "react-native start --port 8082",
+    "start:emulator": "react-native start --port 8081",
     "test": "jest"
   },
   "dependencies": {

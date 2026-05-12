@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { Camera, useCameraDevice } from 'react-native-vision-camera';
+import { Camera, useCameraDevices } from 'react-native-vision-camera';
 
 import { colors } from '../theme/colors';
 
@@ -8,12 +8,17 @@ type Props = {
   hasPermission: boolean;
   cameraRef?: React.RefObject<Camera | null>;
   style?: StyleProp<ViewStyle>;
+  onCameraError?: (message: string) => void;
 };
 
-export const CameraPreview = ({ hasPermission, cameraRef, style }: Props) => {
-  const device = useCameraDevice('back');
+export const CameraPreview = ({ hasPermission, cameraRef, style, onCameraError }: Props) => {
+  const devices = useCameraDevices();
+  const backDevice = devices.find(item => item.position === 'back');
+  const frontDevice = devices.find(item => item.position === 'front');
+  const fallbackDevice = __DEV__ ? devices[0] : undefined;
+  const device = backDevice ?? frontDevice ?? fallbackDevice;
 
-  if (!hasPermission || !device) {
+  if (!hasPermission) {
     return (
       <View style={[styles.base, styles.placeholder, style]}>
         <Text style={styles.placeholderText}>Permiso de camara pendiente</Text>
@@ -21,7 +26,26 @@ export const CameraPreview = ({ hasPermission, cameraRef, style }: Props) => {
     );
   }
 
-  return <Camera ref={cameraRef} style={[styles.base, style]} device={device} isActive photo />;
+  if (!device) {
+    return (
+      <View style={[styles.base, styles.placeholder, style]}>
+        <Text style={styles.placeholderText}>No hay camara disponible en este dispositivo</Text>
+      </View>
+    );
+  }
+
+  return (
+    <Camera
+      ref={cameraRef}
+      style={[styles.base, style]}
+      device={device}
+      isActive
+      photo
+      onError={error => {
+        onCameraError?.(error.message);
+      }}
+    />
+  );
 };
 
 const styles = StyleSheet.create({

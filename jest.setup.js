@@ -18,3 +18,9 @@ jest.mock('react-native-fs', () => ({
   writeFile: jest.fn().mockResolvedValue(undefined),
   copyFile: jest.fn().mockResolvedValue(undefined),
 }));
+
+jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  return ({ name }) => React.createElement(Text, null, name || 'icon');
+});

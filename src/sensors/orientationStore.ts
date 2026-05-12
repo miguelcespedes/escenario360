@@ -3,6 +3,7 @@ export type DeviceOrientation = {
   pitch: number;
   roll: number;
   isLevel: boolean;
+  source: 'mock' | 'sensor';
 };
 
 export const defaultOrientation: DeviceOrientation = {
@@ -10,4 +11,5 @@ export const defaultOrientation: DeviceOrientation = {
   pitch: 0,
   roll: 0,
   isLevel: true,
+  source: 'mock',
 };

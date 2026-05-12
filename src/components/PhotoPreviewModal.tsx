@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Image, StyleSheet, View } from 'react-native';
 import { useWindowDimensions } from 'react-native';
-import { IconButton, Modal, Portal, Surface, Text, useTheme } from 'react-native-paper';
+import { Button, IconButton, Modal, Portal, Surface, Text, useTheme } from 'react-native-paper';
 
 type PhotoItem = {
   panel: number;
@@ -14,14 +14,16 @@ type Props = {
   visible: boolean;
   photos: PhotoItem[];
   initialIndex: number;
-  onDismiss: () => void;
+  onDismiss?: () => void;
+  onClose?: () => void;
 };
 
-export const PhotoPreviewModal = ({ visible, photos, initialIndex, onDismiss }: Props) => {
+export const PhotoPreviewModal = ({ visible, photos, initialIndex, onDismiss, onClose }: Props) => {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const listRef = useRef<FlatList<PhotoItem>>(null);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const handleClose = onDismiss ?? onClose ?? (() => {});
 
   useEffect(() => {
     if (visible) {
@@ -42,13 +44,17 @@ export const PhotoPreviewModal = ({ visible, photos, initialIndex, onDismiss }: 
 
   return (
     <Portal>
-      <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modalContainer}>
+      <Modal visible={visible} onDismiss={handleClose} contentContainerStyle={styles.modalContainer}>
         <Surface style={[styles.frame, { backgroundColor: theme.colors.surface }]} elevation={4}>
           <View style={styles.topRow}>
             <Text variant="titleMedium" style={styles.label}>
               {`Panel ${String((current?.panel ?? 1)).padStart(2, '0')} de ${String(photos.length).padStart(2, '0')}`}
             </Text>
-            <IconButton icon="close" mode="contained-tonal" size={20} onPress={onDismiss} />
+            <View style={styles.closeWrap}>
+              <Button mode="text" compact onPress={handleClose} icon="close">
+                Cerrar
+              </Button>
+            </View>
           </View>
 
           <FlatList
@@ -123,6 +129,11 @@ const styles = StyleSheet.create({
   },
   label: {
     fontWeight: '700',
+  },
+  closeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   page: {
     width: '100%',

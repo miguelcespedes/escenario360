@@ -6,9 +6,12 @@ import { Camera } from 'react-native-vision-camera';
 import { CameraPreview } from '../components/CameraPreview';
 import { CaptureControls } from '../components/CaptureControls';
 import { LevelHud } from '../components/LevelHud';
+import { ArPointStrip } from '../components/ArPointStrip';
 import { PanelCarousel } from '../components/PanelCarousel';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
+import { buildGuidance, estimateOverlapFromStep } from '../capture/guidance';
 import { useCaptureStore } from '../capture/captureStore';
+import { createArEquatorAnchors, isArModuleAvailable, startArSession, stopArSession } from '../ar/arGuidanceBridge';
 import { saveManifestFile, savePanelImage } from '../utils/fileSystem';
 import { requestCameraAndStoragePermissions } from '../utils/permissions';
 import { useDeviceOrientation } from '../sensors/useDeviceOrientation';
@@ -23,15 +26,37 @@ export const CaptureScreen = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [arStatus, setArStatus] = useState<'idle' | 'ready' | 'active' | 'unavailable'>('idle');
   const capture = useCaptureStore();
   const orientation = useDeviceOrientation();
+  const target = capture.getTargetForPanel(capture.currentPanel);
+  const guidanceState = buildGuidance(orientation, target, capture.currentPanel === 1);
+  const enforceGuidance = orientation.source === 'sensor';
 
   React.useEffect(() => {
     requestCameraAndStoragePermissions().then(setHasPermission);
   }, []);
 
+  React.useEffect(() => {
+    setArStatus(isArModuleAvailable() ? 'ready' : 'unavailable');
+    return () => {
+      stopArSession().catch(() => {});
+    };
+  }, []);
+
   const handleCapture = async () => {
     if (!hasPermission || capture.currentPanel > capture.totalPanels) {
+      return;
+    }
+
+    if (!capture.anchorReady) {
+      capture.setStatusText('Primero fija el punto base.');
+      return;
+    }
+
+    if (enforceGuidance && !guidanceState.isCaptureAllowed) {
+      capture.setStatusText(guidanceState.message);
       return;
     }
 
@@ -43,19 +68,34 @@ export const CaptureScreen = () => {
 
       const panelNo = capture.currentPanel;
       const saved = await savePanelImage(photo.path, panelNo);
-      const plan = capture.plan[panelNo - 1];
+      const panelTarget = capture.getTargetForPanel(panelNo);
+      const previousShot = capture.shots[capture.shots.length - 1];
+      const stepDeltaYaw = previousShot ? orientation.yaw - previousShot.capturedYaw : 0;
+      const overlapEstimate = previousShot ? estimateOverlapFromStep(stepDeltaYaw) : 0.35;
       capture.registerShot(
         {
           index: panelNo,
           filename: saved.filename,
           panel: panelNo,
           band: 'equator',
-          plannedYaw: plan.plannedYaw,
-          plannedPitch: plan.plannedPitch,
+          plannedYaw: panelTarget.plannedYaw,
+          plannedPitch: panelTarget.plannedPitch,
           capturedYaw: orientation.yaw,
           capturedPitch: orientation.pitch,
           capturedRoll: orientation.roll,
           capturedAt: new Date().toISOString(),
+          target: {
+            expectedYaw: panelTarget.plannedYaw,
+            expectedPitch: panelTarget.plannedPitch,
+            expectedRoll: panelTarget.plannedRoll,
+          },
+          quality: {
+            alignmentStatus: guidanceState.isCaptureAllowed ? 'accepted' : 'warning',
+            overlapEstimate,
+            verticalDeviation: Number(Math.abs(guidanceState.deltas.pitch).toFixed(2)),
+            rollDeviation: Number(Math.abs(guidanceState.deltas.roll).toFixed(2)),
+            yawDeviation: Number(Math.abs(guidanceState.deltas.yaw).toFixed(2)),
+          },
         },
         saved.path,
       );
@@ -68,6 +108,35 @@ export const CaptureScreen = () => {
     const manifestPath = await saveManifestFile(JSON.stringify(capture.manifest, null, 2));
     Alert.alert('Exportar manifest', `Manifest guardado en ${manifestPath}`);
     setMenuVisible(false);
+  };
+
+  const handleSetAnchor = () => {
+    if (orientation.source !== 'sensor') {
+      capture.setStatusText('Sensor no disponible para fijar punto base.');
+      return;
+    }
+    startArSession()
+      .then(started => {
+        if (!started) {
+          setArStatus('unavailable');
+          capture.setStatusText('AR no disponible. Se usara guia de orientacion.');
+          capture.setAnchorFromOrientation(orientation.yaw, orientation.pitch, orientation.roll);
+          return;
+        }
+        return createArEquatorAnchors(capture.totalPanels).then(created => {
+          if (!created) {
+            capture.setStatusText('No se pudieron crear puntos AR. Se usa ancla de orientacion.');
+          } else {
+            setArStatus('active');
+            capture.setStatusText('Puntos AR inicializados. Sigue el punto 01.');
+          }
+          capture.setAnchorFromOrientation(orientation.yaw, orientation.pitch, orientation.roll);
+        });
+      })
+      .catch(() => {
+        capture.setStatusText('Fallo AR. Se usa ancla de orientacion.');
+        capture.setAnchorFromOrientation(orientation.yaw, orientation.pitch, orientation.roll);
+      });
   };
 
   const handleOpenPanel = (panel: { panel: number; thumbnailUri?: string }) => {
@@ -100,11 +169,32 @@ export const CaptureScreen = () => {
   const isComplete = capture.shots.length === capture.totalPanels;
   const completedPanels = capture.shots.length;
   const highlightedPanel = completedPanels > 0 ? completedPanels : capture.currentPanel;
-  const guidance = isComplete
-    ? 'Captura completa.'
-    : orientation.isLevel
-      ? capture.statusText
-      : 'Celular inclinado.';
+  const guidance = cameraError
+    ? `Error de camara: ${cameraError}`
+    : isComplete
+      ? 'Captura completa.'
+      : !capture.anchorReady
+        ? 'Fija un punto base mirando al centro de inicio.'
+      : enforceGuidance
+        ? guidanceState.message
+        : `${capture.statusText} (guia basica)`;
+
+  const subtitleRight =
+    arStatus === 'active'
+      ? 'AR activo'
+      : arStatus === 'ready'
+        ? 'AR listo'
+        : arStatus === 'unavailable'
+          ? 'AR no disponible'
+          : 'AR inicializando';
+
+  const statusIcon = isComplete
+    ? 'check-circle'
+    : guidanceState.status === 'alineado'
+      ? 'check-circle-outline'
+      : guidanceState.status === 'cerca'
+        ? 'target'
+        : 'alert-circle-outline';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -123,21 +213,36 @@ export const CaptureScreen = () => {
         />
 
         <View style={styles.cameraWrap}>
-          <CameraPreview hasPermission={hasPermission} cameraRef={cameraRef} style={styles.camera} />
+          <CameraPreview
+            hasPermission={hasPermission}
+            cameraRef={cameraRef}
+            style={styles.camera}
+            onCameraError={message => setCameraError(message)}
+          />
           <View style={styles.hudLayer}>
-            <LevelHud isLevel={orientation.isLevel} />
+            <LevelHud
+              isLevel={orientation.isLevel}
+              alignmentStatus={guidanceState.status}
+              showTarget={false}
+            />
+            <ArPointStrip
+              total={capture.totalPanels}
+              activeIndex={capture.currentPanel}
+              completed={capture.shots.length}
+            />
             <AppSurface style={styles.topOverlay}>
               <View style={styles.subtitleRow}>
                 <Icon source="panorama-horizontal" size={14} color="#9AB0C8" />
                 <PaperText style={styles.subtitle}>Captura panoramica</PaperText>
               </View>
               <PaperText style={styles.status}>{`Panel ${String(capture.currentPanel).padStart(2, '0')} de ${String(capture.totalPanels).padStart(2, '0')}`}</PaperText>
+              <PaperText style={styles.statusHint}>{subtitleRight}</PaperText>
             </AppSurface>
             <AppSurface style={styles.bottomOverlay}>
               <Icon
-                source={isComplete ? 'check-circle' : orientation.isLevel ? 'camera' : 'alert-circle-outline'}
+                source={statusIcon}
                 size={14}
-                color={isComplete ? '#5BD3A3' : '#EAF2FF'}
+                color={isComplete || guidanceState.status === 'alineado' ? '#5BD3A3' : '#EAF2FF'}
               />
               <PaperText style={styles.bottomText}>{guidance}</PaperText>
             </AppSurface>
@@ -152,9 +257,15 @@ export const CaptureScreen = () => {
         />
 
         <CaptureControls
+          onSetAnchor={handleSetAnchor}
           onCapture={handleCapture}
           panelLabel={`${completedPanels}/${capture.totalPanels} capturadas`}
-          disabled={!hasPermission}
+          anchorReady={capture.anchorReady}
+          disabled={
+            !hasPermission ||
+            !capture.anchorReady ||
+            (enforceGuidance && !guidanceState.isCaptureAllowed)
+          }
         />
 
         <PhotoPreviewModal
@@ -223,6 +334,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '700',
     fontSize: 14,
+    marginTop: 2,
+  },
+  statusHint: {
+    color: '#9AB0C8',
+    fontSize: 11,
     marginTop: 2,
   },
   bottomOverlay: {

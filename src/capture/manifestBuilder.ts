@@ -9,6 +9,18 @@ export type ManifestShot = {
   capturedPitch: number;
   capturedRoll: number;
   capturedAt: string;
+  target: {
+    expectedYaw: number;
+    expectedPitch: number;
+    expectedRoll: number;
+  };
+  quality: {
+    alignmentStatus: 'accepted' | 'warning';
+    overlapEstimate: number;
+    verticalDeviation: number;
+    rollDeviation: number;
+    yawDeviation: number;
+  };
 };
 
 export type StageManifest = {
@@ -17,19 +29,23 @@ export type StageManifest = {
   appVersion: '0.1.0';
   appName: 'stage360';
   platform: 'react-native-android';
-  captureMode: 'cylindrical-panel-segments';
+  captureMode: 'cylindrical-panel-segments' | 'ar-guided';
   stitching: 'backend';
   total: number;
   shots: ManifestShot[];
 };
 
-export const createManifest = (total: number, shots: ManifestShot[]): StageManifest => ({
+export const createManifest = (
+  total: number,
+  shots: ManifestShot[],
+  captureMode: StageManifest['captureMode'] = 'cylindrical-panel-segments',
+): StageManifest => ({
   type: 'guided-cylindrical-panel-capture',
   version: '1.0.0',
   appVersion: '0.1.0',
   appName: 'stage360',
   platform: 'react-native-android',
-  captureMode: 'cylindrical-panel-segments',
+  captureMode,
   stitching: 'backend',
   total,
   shots,

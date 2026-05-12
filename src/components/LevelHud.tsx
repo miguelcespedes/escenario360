@@ -5,16 +5,49 @@ import { colors } from '../theme/colors';
 
 type Props = { isLevel: boolean };
 
-export const LevelHud = ({ isLevel }: Props) => {
+type AlignmentStatus = 'fuera' | 'cerca' | 'alineado';
+
+type ExtendedProps = Props & {
+  alignmentStatus?: AlignmentStatus;
+  targetOffsetX?: number;
+  targetOffsetY?: number;
+  showTarget?: boolean;
+};
+
+export const LevelHud = ({
+  isLevel,
+  alignmentStatus = 'fuera',
+  targetOffsetX = 0,
+  targetOffsetY = 0,
+  showTarget = true,
+}: ExtendedProps) => {
+  const reticleColor =
+    alignmentStatus === 'alineado' ? colors.ok : alignmentStatus === 'cerca' ? '#EAC45A' : '#EAF2FF';
+  const targetColor =
+    alignmentStatus === 'alineado' ? colors.ok : alignmentStatus === 'cerca' ? '#EAC45A' : '#FF7E7E';
+
   return (
     <View pointerEvents="none" style={styles.overlay}>
       <View style={styles.equatorLine} />
-      <View style={styles.reticleOuter}>
+      <View style={[styles.reticleOuter, { borderColor: reticleColor }]}>
         <View style={styles.reticleInner} />
       </View>
+      {showTarget ? (
+        <View
+          style={[
+            styles.targetOuter,
+            {
+              borderColor: targetColor,
+              transform: [{ translateX: targetOffsetX }, { translateY: targetOffsetY }],
+            },
+          ]}
+        >
+          <View style={[styles.targetInner, { backgroundColor: targetColor }]} />
+        </View>
+      ) : null}
       <View style={styles.tipWrap}>
-        <Text style={[styles.label, { color: isLevel ? colors.ok : colors.warn }]}>
-          {isLevel ? 'Mantén el celular recto.' : 'Celular inclinado.'}
+        <Text style={[styles.label, { color: isLevel ? colors.ok : colors.warn }]}> 
+          {isLevel ? 'Mantén el celular recto.' : 'Nivela el telefono.'}
         </Text>
       </View>
     </View>
@@ -53,6 +86,21 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: 5,
     backgroundColor: colors.text,
+  },
+  targetOuter: {
+    position: 'absolute',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12, 20, 35, 0.25)',
+  },
+  targetInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 5,
   },
   tipWrap: {
     position: 'absolute',
