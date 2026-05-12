@@ -11,7 +11,19 @@ import { PanelCarousel } from '../components/PanelCarousel';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { buildGuidance, estimateOverlapFromStep } from '../capture/guidance';
 import { useCaptureStore } from '../capture/captureStore';
-import { createArEquatorAnchors, isArModuleAvailable, startArSession, stopArSession } from '../ar/arGuidanceBridge';
+import {
+  advanceArAnchor,
+  createArEquatorAnchors,
+  getArAnchors,
+  getArStatus,
+  isArModuleAvailable,
+  setArAnchorMode,
+  startArSession,
+  stopArSession,
+  subscribeArStatus,
+  type ArGuidanceStatus,
+  type ArAnchorPoint,
+} from '../ar/arGuidanceBridge';
 import { saveManifestFile, savePanelImage } from '../utils/fileSystem';
 import { requestCameraAndStoragePermissions } from '../utils/permissions';
 import { useDeviceOrientation } from '../sensors/useDeviceOrientation';
@@ -28,11 +40,35 @@ export const CaptureScreen = () => {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [arStatus, setArStatus] = useState<'idle' | 'ready' | 'active' | 'unavailable'>('idle');
+  const [arGuidanceStatus, setArGuidanceStatus] = useState<ArGuidanceStatus | null>(null);
+  const [arAnchors, setArAnchors] = useState<ArAnchorPoint[]>([]);
   const capture = useCaptureStore();
   const orientation = useDeviceOrientation();
-  const target = capture.getTargetForPanel(capture.currentPanel);
+  const fallbackTarget = capture.getTargetForPanel(capture.currentPanel);
+  const target =
+    arStatus === 'active' &&
+    arGuidanceStatus?.targetYaw !== undefined &&
+    arGuidanceStatus?.targetPitch !== undefined
+      ? {
+          plannedYaw: arGuidanceStatus.targetYaw,
+          plannedPitch: arGuidanceStatus.targetPitch,
+          plannedRoll: capture.rollAnchor ?? 0,
+        }
+      : fallbackTarget;
   const guidanceState = buildGuidance(orientation, target, capture.currentPanel === 1);
   const enforceGuidance = orientation.source === 'sensor';
+  const scanStage: 'idle' | 'scan_floor' | 'scan_walls' | 'ready' | 'tracking_lost' =
+    capture.anchorReady && orientation.source !== 'sensor'
+      ? 'tracking_lost'
+      : !capture.anchorReady
+        ? 'idle'
+        : arGuidanceStatus?.sessionQuality === 'ready'
+          ? 'ready'
+          : arGuidanceStatus?.floorDetected && !arGuidanceStatus?.wallsDetected
+            ? 'scan_walls'
+            : arGuidanceStatus?.sessionQuality === 'scanning'
+              ? 'scan_floor'
+              : 'scan_floor';
 
   React.useEffect(() => {
     requestCameraAndStoragePermissions().then(setHasPermission);
@@ -40,7 +76,12 @@ export const CaptureScreen = () => {
 
   React.useEffect(() => {
     setArStatus(isArModuleAvailable() ? 'ready' : 'unavailable');
+    const subscription = subscribeArStatus(status => {
+      setArGuidanceStatus(status);
+    });
+    getArStatus().then(setArGuidanceStatus).catch(() => {});
     return () => {
+      subscription.remove();
       stopArSession().catch(() => {});
     };
   }, []);
@@ -52,6 +93,11 @@ export const CaptureScreen = () => {
 
     if (!capture.anchorReady) {
       capture.setStatusText('Primero fija el punto base.');
+      return;
+    }
+
+    if (scanStage === 'tracking_lost') {
+      capture.setStatusText('Tracking perdido. Reescanea suelo y paredes.');
       return;
     }
 
@@ -99,6 +145,10 @@ export const CaptureScreen = () => {
         },
         saved.path,
       );
+
+      if (arStatus === 'active') {
+        advanceArAnchor().catch(() => {});
+      }
     } catch {
       capture.setStatusText('Celular inclinado.');
     }
@@ -119,23 +169,28 @@ export const CaptureScreen = () => {
       .then(started => {
         if (!started) {
           setArStatus('unavailable');
-          capture.setStatusText('AR no disponible. Se usara guia de orientacion.');
-          capture.setAnchorFromOrientation(orientation.yaw, orientation.pitch, orientation.roll);
+          capture.setStatusText('ARCore no disponible. Este modo requiere AR real.');
           return;
         }
-        return createArEquatorAnchors(capture.totalPanels).then(created => {
-          if (!created) {
-            capture.setStatusText('No se pudieron crear puntos AR. Se usa ancla de orientacion.');
-          } else {
-            setArStatus('active');
-            capture.setStatusText('Puntos AR inicializados. Sigue el punto 01.');
-          }
-          capture.setAnchorFromOrientation(orientation.yaw, orientation.pitch, orientation.roll);
-        });
+        capture.setStatusText('Inicia escaneo AR: suelo primero, luego paredes.');
+        return setArAnchorMode('world').then(() =>
+          createArEquatorAnchors(
+            capture.totalPanels,
+            orientation.yaw,
+            orientation.pitch,
+          ).then(created => {
+            if (!created) {
+              capture.setStatusText('No se pudieron crear anchors AR reales. Reintenta escaneo.');
+            } else {
+              getArAnchors().then(setArAnchors).catch(() => {});
+              setArStatus('active');
+              capture.setAnchorFromOrientation(orientation.yaw, orientation.pitch, orientation.roll);
+            }
+          }),
+        );
       })
       .catch(() => {
-        capture.setStatusText('Fallo AR. Se usa ancla de orientacion.');
-        capture.setAnchorFromOrientation(orientation.yaw, orientation.pitch, orientation.roll);
+        capture.setStatusText('Fallo AR. Reintenta inicializar ARCore.');
       });
   };
 
@@ -175,18 +230,48 @@ export const CaptureScreen = () => {
       ? 'Captura completa.'
       : !capture.anchorReady
         ? 'Fija un punto base mirando al centro de inicio.'
+      : scanStage === 'scan_floor'
+        ? 'Escaneo: apunta al suelo y mueve el telefono lentamente.'
+      : scanStage === 'scan_walls'
+        ? 'Escaneo: apunta a paredes para cerrar el escenario.'
+      : scanStage === 'tracking_lost'
+        ? 'Tracking perdido. Vuelve a escanear paredes.'
       : enforceGuidance
         ? guidanceState.message
         : `${capture.statusText} (guia basica)`;
 
   const subtitleRight =
     arStatus === 'active'
-      ? 'AR activo'
+      ? `AR ${arGuidanceStatus?.anchorMode || 'synthetic'} ${arGuidanceStatus?.activeAnchorIndex || capture.currentPanel}/${arAnchors.length || arGuidanceStatus?.totalAnchors || capture.totalPanels}`
       : arStatus === 'ready'
         ? 'AR listo'
         : arStatus === 'unavailable'
           ? 'AR no disponible'
           : 'AR inicializando';
+
+  const arHint =
+    arStatus === 'active' && arGuidanceStatus?.anchorMode === 'synthetic'
+      ? arGuidanceStatus.modeReason || 'World anchors aun no activos.'
+      : null;
+
+  const arTargetHint =
+    arStatus === 'active' &&
+    arGuidanceStatus?.targetX !== undefined &&
+    arGuidanceStatus?.targetY !== undefined &&
+    arGuidanceStatus?.targetZ !== undefined
+      ? `Target XYZ: ${arGuidanceStatus.targetX.toFixed(2)}, ${arGuidanceStatus.targetY.toFixed(2)}, ${arGuidanceStatus.targetZ.toFixed(2)}`
+      : null;
+
+  const scanProgress =
+    scanStage === 'idle'
+      ? 0
+      : scanStage === 'scan_floor'
+        ? 33
+        : scanStage === 'scan_walls'
+          ? 66
+          : scanStage === 'ready'
+            ? 100
+            : 50;
 
   const statusIcon = isComplete
     ? 'check-circle'
@@ -227,8 +312,9 @@ export const CaptureScreen = () => {
             />
             <ArPointStrip
               total={capture.totalPanels}
-              activeIndex={capture.currentPanel}
+              activeIndex={arGuidanceStatus?.activeAnchorIndex || capture.currentPanel}
               completed={capture.shots.length}
+              anchors={arAnchors}
             />
             <AppSurface style={styles.topOverlay}>
               <View style={styles.subtitleRow}>
@@ -237,6 +323,11 @@ export const CaptureScreen = () => {
               </View>
               <PaperText style={styles.status}>{`Panel ${String(capture.currentPanel).padStart(2, '0')} de ${String(capture.totalPanels).padStart(2, '0')}`}</PaperText>
               <PaperText style={styles.statusHint}>{subtitleRight}</PaperText>
+              <View style={styles.scanProgressWrap}>
+                <View style={[styles.scanProgressFill, { width: `${scanProgress}%` }]} />
+              </View>
+              {arTargetHint ? <PaperText style={styles.statusHintDim}>{arTargetHint}</PaperText> : null}
+              {arHint ? <PaperText style={styles.statusHintWarn}>{arHint}</PaperText> : null}
             </AppSurface>
             <AppSurface style={styles.bottomOverlay}>
               <Icon
@@ -264,6 +355,9 @@ export const CaptureScreen = () => {
           disabled={
             !hasPermission ||
             !capture.anchorReady ||
+            scanStage === 'scan_floor' ||
+            scanStage === 'scan_walls' ||
+            scanStage === 'tracking_lost' ||
             (enforceGuidance && !guidanceState.isCaptureAllowed)
           }
         />
@@ -340,6 +434,28 @@ const styles = StyleSheet.create({
     color: '#9AB0C8',
     fontSize: 11,
     marginTop: 2,
+  },
+  statusHintWarn: {
+    color: '#EAC45A',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  statusHintDim: {
+    color: '#6F87A4',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  scanProgressWrap: {
+    marginTop: 6,
+    width: '100%',
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
+  },
+  scanProgressFill: {
+    height: '100%',
+    backgroundColor: '#5BD3A3',
   },
   bottomOverlay: {
     position: 'absolute',

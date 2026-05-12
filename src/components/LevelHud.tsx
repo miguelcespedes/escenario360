@@ -28,8 +28,7 @@ export const LevelHud = ({
 
   return (
     <View pointerEvents="none" style={styles.overlay}>
-      <View style={styles.equatorLine} />
-      <View style={[styles.reticleOuter, { borderColor: reticleColor }]}>
+      <View style={[styles.reticleOuter, { borderColor: reticleColor }]}> 
         <View style={styles.reticleInner} />
       </View>
       {showTarget ? (
@@ -63,14 +62,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  equatorLine: {
-    position: 'absolute',
-    left: 22,
-    right: 22,
-    height: 2,
-    backgroundColor: colors.active,
-    opacity: 0.7,
   },
   reticleOuter: {
     width: 44,
